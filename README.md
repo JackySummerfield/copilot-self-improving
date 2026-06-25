@@ -4,7 +4,7 @@
 
 # 🔄 Copilot Self-Improving
 
-#### 一个让 Copilot 自己变聪明的 Skill——定期回顾对话历史，优化现有 Skill、提炼知识、发现新 Skill 机会
+#### 让 Copilot Chat 越用越顺手——定期回顾对话历史，优化现有 Skill、提炼知识、发现新 Skill 机会
 
 ![VS Code 1.99+](https://img.shields.io/badge/VS_Code-1.99+-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)
 ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-Skill-000?style=for-the-badge&logo=githubcopilot&logoColor=white)
@@ -19,9 +19,9 @@
 
 ## 🤔 为什么做这个
 
-大多数人写完 Skill 就不再迭代了——触发词覆盖不全、工作流有缺口、领域知识散落在历史对话里。问题是：**你不会主动去翻聊天记录找改进点**。
+每一条对话历史都藏着改进机会——agent 输出不达预期、触发词覆盖不全、工作流有缺口、领域知识散落各处。但没人会主动翻聊天记录去复盘。
 
-本 Skill 自动化这个闭环：
+本 Skill 将这个反馈闭环自动化：
 
 - **扫描全部未回顾的对话** — 跨所有 VS Code 工作区收集聊天历史
 - **交叉比对现有 Skill** — 找出遗漏触发词、工作流缺口、可合并的重复操作
@@ -35,6 +35,7 @@
 | 完整回顾 | `每日回顾` / `daily review` | 收集 → 分析 → 建议 → 应用全流程 |
 | Skill 优化 | `技能优化` / `skill review` | 聚焦现有 Skill 改进 |
 | 知识提取 | `知识提取` / `knowledge extraction` | 聚焦知识沉淀 |
+| Token 用量统计 | 随完整回顾自动执行 | 估算各 session 的 token 消耗和成本 |
 | 通用复盘 | `复盘` / `self-improving` | 同完整回顾 |
 
 ### 它能检测到什么
@@ -43,6 +44,7 @@
 - **工作流缺口** — 需要手动补充的步骤，可以自动化
 - **新 Skill 机会** — 跨 session 反复出现的多步模式
 - **知识碎片** — 技术排错、领域规则、最佳实践
+- **Token 消耗趋势** — 基于 transcript 字符数 + models.json 单价估算成本，识别高消耗 session
 
 ## 🚀 快速开始
 

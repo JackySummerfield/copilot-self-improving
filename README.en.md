@@ -4,7 +4,7 @@
 
 # 🔄 Copilot Self-Improving
 
-#### A Skill that makes Copilot smarter over time — reviews chat history to optimize Skills, extract knowledge, and discover new automation opportunities
+#### Make Copilot Chat better over time — periodically reviews conversation history to optimize Skills, distill knowledge, and discover new automation opportunities
 
 ![VS Code 1.99+](https://img.shields.io/badge/VS_Code-1.99+-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)
 ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-Skill-000?style=for-the-badge&logo=githubcopilot&logoColor=white)
@@ -19,7 +19,7 @@
 
 ## 🤔 Why This Exists
 
-Most people write a Skill once and never iterate — triggers have gaps, workflows miss steps, domain knowledge stays buried in old conversations. The problem: **you won't manually dig through chat history to find improvement opportunities**.
+Every conversation hides improvement opportunities — agent output below expectations, missing triggers, workflow gaps, domain knowledge scattered across sessions. But nobody manually reviews chat history to find them.
 
 This Skill automates the feedback loop:
 
@@ -35,6 +35,7 @@ This Skill automates the feedback loop:
 | Full Review | `daily review` / `每日回顾` | Collect → Analyze → Suggest → Apply (end-to-end) |
 | Skill Optimization | `skill review` / `技能优化` | Focus on improving existing Skills |
 | Knowledge Extraction | `knowledge extraction` / `知识提取` | Focus on knowledge distillation |
+| Token Usage Stats | Runs automatically with full review | Estimates token consumption and cost per session |
 | General Review | `self-improving` / `复盘` | Same as full review |
 
 ### What It Detects
@@ -43,6 +44,7 @@ This Skill automates the feedback loop:
 - **Workflow gaps** — manual steps that could be automated
 - **New Skill opportunities** — repeated multi-step patterns across sessions
 - **Knowledge fragments** — technical troubleshooting, domain rules, best practices
+- **Token cost trends** — estimates cost from transcript char counts + models.json pricing, highlights high-consumption sessions
 
 ## 🚀 Quick Start
 
