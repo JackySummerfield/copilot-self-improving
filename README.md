@@ -32,9 +32,10 @@
 
 | 功能 | 触发语 | 说明 |
 |------|--------|------|
-| 完整回顾 | `每日回顾` / `daily review` | 收集 → 分析 → 建议 → 应用全流程 |
+| 完整回顾 | `每日回顾` / `daily review` | 收集 → 分析 → 记忆审计 → 建议 → 应用全流程 |
 | Skill 优化 | `技能优化` / `skill review` | 聚焦现有 Skill 改进 |
 | 知识提取 | `知识提取` / `knowledge extraction` | 聚焦知识沉淀 |
+| 记忆管理 | `记忆审计` / `memory audit` | 审计全局记忆健康度，精简膨胀内容 |
 | Token 用量统计 | 随完整回顾自动执行 | 估算各 session 的 token 消耗和成本 |
 | 通用复盘 | `复盘` / `self-improving` | 同完整回顾 |
 
@@ -44,6 +45,7 @@
 - **工作流缺口** — 需要手动补充的步骤，可以自动化
 - **新 Skill 机会** — 跨 session 反复出现的多步模式
 - **知识碎片** — 技术排错、领域规则、最佳实践
+- **记忆膨胀** — 全局记忆超出 200 行预算，过时/错位/冗余的条目
 - **Token 消耗趋势** — 基于 transcript 字符数 + models.json 单价估算成本，识别高消耗 session
 
 ## 🚀 快速开始
@@ -70,14 +72,16 @@ git clone https://github.com/JackySummerfield/copilot-self-improving.git ~/.copi
 
 ```mermaid
 graph LR
-    A[收集未回顾对话] --> B[读取现有 Skills]
-    B --> C[交叉分析 & 识别机会]
-    C --> D[生成结构化报告]
-    D --> E{用户选择}
-    E -->|批准| F[自动应用修改]
-    E -->|拒绝| G[跳过]
-    F --> H[标记已回顾 & 保存报告]
-    G --> H
+    A[收集数据] --> B[加载上下文]
+    B --> C[分析 Skill & 知识机会]
+    B --> D[审计记忆健康]
+    C --> E[生成结构化报告]
+    D --> E
+    E --> F{用户选择}
+    F -->|批准| G[自动应用修改]
+    F -->|拒绝| H[跳过]
+    G --> I[归档 & 保存报告]
+    H --> I
 ```
 
 ## 📄 输出示例
@@ -90,7 +94,7 @@ graph LR
 
 - Sessions reviewed: 12
 - Workspaces covered: 4
-- Time period: 2026-06-18 to 2026-06-24
+- Time period: 2026-01-10 to 2026-01-15
 
 ## 💰 Token Usage & Cost (估算)
 - 估算 input tokens: ~85k | output tokens: ~120k
@@ -99,10 +103,10 @@ graph LR
 
 ## 🔧 Existing Skill Optimizations
 
-### 1. plantsim-copilot - 补充触发词
+### 1. api-docs-helper - 补充触发词
 - **Category**: Missing trigger
-- **Evidence**: 用户说"帮我写个SimTalk方法"但 Skill 未命中
-- **Suggested Change**: triggers 增加 "写SimTalk", "SimTalk方法"
+- **Evidence**: 用户说“查一下这个接口怎么调”但 Skill 未命中
+- **Suggested Change**: triggers 增加 "查接口", "调用方法"
 - **Impact**: Medium
 
 ## 🆕 New Skill Opportunities
@@ -114,9 +118,9 @@ graph LR
 
 ## 📝 Knowledge Nuggets
 
-### 1. OneDrive 与 .git 冲突
-- **Target**: ~/.copilot/knowledge/pg-it-environment.md (append)
-- **Content**: OneDrive 同步会锁定 .git/index，导致 git 操作失败。解决：将 .git 目录排除出 OneDrive 同步
+### 1. 云同步与 .git 冲突
+- **Target**: ~/.copilot/knowledge/dev-environment.md (append)
+- **Content**: 云同步工具（OneDrive/Dropbox）会锁定 .git/index，导致 git 操作失败。解决：将 .git 目录排除出同步
 ```
 
 </details>
@@ -125,16 +129,16 @@ graph LR
 <summary><b>变更日志</b></summary>
 
 ```markdown
-## 2026-06-24 - plantsim-copilot - Missing Trigger
-- **Reason**: 用户使用"写SimTalk方法"触发未命中
+## 2026-01-15 - api-docs-helper - Missing Trigger
+- **Reason**: 用户使用“查接口”触发未命中
 - **Evidence**: session abc123, turn 5
 - **Changes Made**:
-  - SKILL.md triggers 增加: 写SimTalk, SimTalk方法
+  - SKILL.md triggers 增加: 查接口, 调用方法
 
-## 2026-06-24 - Knowledge Base - pg-it-environment
-- **File**: ~/.copilot/knowledge/pg-it-environment.md
+## 2026-01-15 - Knowledge Base - dev-environment
+- **File**: ~/.copilot/knowledge/dev-environment.md
 - **Action**: Appended
-- **Entry**: OneDrive .git 冲突解决方法
+- **Entry**: 云同步 .git 冲突解决方法
 ```
 
 </details>

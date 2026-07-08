@@ -1,14 +1,14 @@
 ---
 name: copilot-self-improving
-description: 'Review recent Copilot chat history to identify skill optimization opportunities, new skill ideas, and extract knowledge nuggets into a personal knowledge base. Analyzes un-reviewed conversations across all workspaces, presents actionable suggestions, and auto-applies approved changes with audit logging. Triggers: 每日回顾, daily review, skill review, 技能优化, skill optimization, 回顾总结, review skills, 复盘, 知识提取, knowledge extraction, self-improving, 自我改进.'
-argument-hint: 'Optional: specify focus area or time range for the review'
+description: 'Review recent Copilot chat history to identify skill optimization opportunities, new skill ideas, extract knowledge nuggets, and audit global memory health. Analyzes un-reviewed conversations across all workspaces, manages memory budget (200-line limit), presents actionable suggestions, and auto-applies approved changes with audit logging. Triggers: 每日回顾, daily review, skill review, 技能优化, skill optimization, 回顾总结, review skills, 复盘, 知识提取, knowledge extraction, self-improving, 自我改进, memory audit, 记忆管理, 记忆审计.'
+argument-hint: 'Optional: specify focus area (e.g., "memory only", "skills only") or time range'
 user-invocable: true
 disable-model-invocation: false
 ---
 
-# Daily Skill Review Workflow
+# Daily Self-Improving Workflow
 
-You are a **Skill Optimization Advisor**. Your job is to review recent Copilot chat conversations, identify patterns, and suggest improvements to the user's existing skills or propose new skills.
+You are a **Skill Optimization & Memory Management Advisor**. Your job is to review recent Copilot chat conversations, identify patterns, suggest improvements to skills, extract knowledge nuggets, and keep the global memory lean and healthy.
 
 ## Pre-requisites
 
@@ -16,6 +16,7 @@ You are a **Skill Optimization Advisor**. Your job is to review recent Copilot c
 - Chat history collector script at `{{SKILL_FOLDER}}/scripts/collect_chat_history.py`
 - Review state file at `{{SKILL_FOLDER}}/review_state.json`
 - Change log at `{{SKILL_FOLDER}}/skill_change_log.md`
+- (Optional) `agentsview` CLI for Codex/Claude Code 精确 token 统计 — install via `powershell -ExecutionPolicy ByPass -c "irm https://agentsview.io/install.ps1 | iex"`。未安装则跳过
 
 ## Workflow
 
@@ -46,7 +47,9 @@ Before running anything, ensure the following files and directories exist. If an
    *(auto-updated by daily review)*
    ```
 
-### Step 1: Collect Un-reviewed Chat History
+### Step 1: Collect Data
+
+#### 1a: Chat History
 
 Run the Python collector script to gather all un-reviewed chat sessions:
 
@@ -54,86 +57,170 @@ Run the Python collector script to gather all un-reviewed chat sessions:
 python "{{SKILL_FOLDER}}/scripts/collect_chat_history.py" --max-assistant-chars 300
 ```
 
-- If the output says "No New Chat History" or "No Chat History Found", inform the user that there are no new conversations to review since the last review, and **stop here**.
-- If there is new history, proceed to Step 2.
+Record whether new history was found. If none, note it but **do NOT stop** — proceed to subsequent steps (memory audit always runs).
 
-### Step 2: Read Current Skills
+#### 1b: Token Usage & Cost Stats
 
-Read ALL existing skill files to understand the current skill landscape:
+> If Step 1a found no new history, skip this section.
 
-1. List directories under `~/.copilot/skills/` (on Windows: `C:\Users\<username>\.copilot\skills\`)
-2. For each skill directory (excluding `daily-skill-review` itself), read the `SKILL.md` file
-3. Build a mental model of:
-   - What each skill covers (triggers, scope, workflow)
-   - What reference materials each skill has
-   - Gaps or overlap between skills
-4. List files under `~/.copilot/knowledge/` to know which topics already exist
-5. Read `~/.copilot/knowledge/_index.md` for the current topic inventory
+**agentsview (Codex / Claude Code only):**
 
-### Step 3: Analyze and Identify Opportunities
+```bash
+agentsview --version
+```
 
-First, read `{{SKILL_FOLDER}}/deferred_opportunities.md` to check if any previously deferred skill ideas now have enough evidence to act on (based on new chat history).
+If available:
+```bash
+agentsview usage daily --all --json
+agentsview usage daily --breakdown --json
+```
 
-Then cross-reference the chat history with existing skills. Look for these patterns:
+> ⚠️ agentsview 只能追踪 Codex / Claude Code 等独立 agent，无法追踪 VS Code Copilot Chat。
 
-#### 🔧 Existing Skill Optimization Opportunities
-- **Missing triggers**: User asked about topics related to a skill but used different words/phrases not in the skill's trigger list
-- **Workflow gaps**: User had to do extra manual steps that could be automated in the skill workflow
-- **Missing references**: User needed information that should be bundled as a reference file
-- **Compliance gaps**: Skill produced output that needed correction, suggesting the compliance gate needs strengthening
-- **Scope expansion**: User used a skill for tasks slightly outside its defined scope, suggesting the scope should be broadened
+**Copilot Chat 自估 (基于 transcript 字符数):**
+
+1. 遍历 Step 1a 收集的 transcript JSONL，统计用户/助手消息的**字符数**
+2. 字符→token 换算: 英文 ~4 chars/token，中文 ~2 chars/token，混合取 ~3 chars/token
+3. 从 `debug-logs/<session-id>/models.json` 提取 `token_prices`:
+   ```json
+   "token_prices": {
+     "batch_size": 1000000,
+     "default": { "input_price": 500, "output_price": 2500 }
+   }
+   ```
+4. 计算: `(input_tokens × input_price + output_tokens × output_price) / batch_size / 100`
+5. Credits 近似: 1 credit ≈ $0.01
+
+> ⚠️ **精度限制**: 估算偏低（不含 system prompt、tool calls 等隐含 token），实际约 2-5x。趋势对比仍有参考价值。
+
+### Step 2: Load Context
+
+加载当前 Skill/Knowledge/Memory 全貌，为后续分析建立基线：
+
+1. **Skills**: List `~/.copilot/skills/`，为每个 Skill 读取 `SKILL.md`（跳过自身）。记录各 Skill 的 triggers、scope、references。
+2. **Knowledge base**: List `~/.copilot/knowledge/`，读取 `_index.md` 了解已有主题。
+3. **Global memory files**: 使用 memory tool `view /memories/` 列出所有用户记忆文件，逐个读取内容。记录：
+   - 每个文件名、行数
+   - 总行数（vs 200 行自动加载上限）
+   - 每个条目的主题归属
+4. **Repo memory**: 使用 memory tool `view /memories/repo/` 了解当前 workspace 的 repo 记忆。
+5. **Deferred opportunities**: 读取 `{{SKILL_FOLDER}}/deferred_opportunities.md` 检查之前搁置的机会。
+
+### Step 3: Analyze Skill & Knowledge Opportunities
+
+> **如果 Step 1a 无新聊天历史，跳过本步骤，直接进入 Step 4。**
+
+Cross-reference chat history with existing skills. Look for:
+
+#### 🔧 Existing Skill Optimizations
+- **Missing triggers**: User used phrases not in the skill's trigger list
+- **Workflow gaps**: User had to do extra manual steps that could be automated
+- **Missing references**: User needed info that should be bundled as a reference file
+- **Compliance gaps**: Skill output needed correction
+- **Scope expansion**: User used a skill for tasks slightly outside its defined scope
 
 #### 🆕 New Skill Opportunities
-- **Repeated patterns**: User performed the same multi-step workflow more than once across sessions
-- **Complex tasks**: User needed extensive back-and-forth for tasks that could be streamlined into a skill
-- **Domain expertise**: User worked in a domain area not covered by any existing skill
-- **Tool chains**: User consistently used the same sequence of tools/commands that could be packaged
+- **Repeated patterns**: Same multi-step workflow appeared across sessions
+- **Complex tasks**: Extensive back-and-forth that could be streamlined
+- **Domain expertise**: Uncovered domain area not covered by any existing skill
+- **Tool chains**: Consistent sequence of tools/commands that could be packaged
 
 #### ⚠️ Issues to Flag
-- **Skill failures**: Cases where a skill was invoked but didn't produce the expected result
-- **User corrections**: Cases where the user had to correct the assistant's output, suggesting skill instructions are incomplete
+- **Skill failures**: Skill invoked but didn't produce expected result
+- **User corrections**: User had to correct the assistant's output
 
 #### 📝 Knowledge Nuggets
-Extract valuable but scattered knowledge from conversations that don't warrant a full skill:
-- **Technical troubleshooting**: Error diagnosis, environment config, tool tricks (e.g., "OneDrive locks .git/index during sync")
-- **Domain knowledge**: Business logic, operational rules, industry terminology (e.g., "装运号 ≈ 一辆货车/一个客户订单")
+Extract valuable scattered knowledge from conversations:
+- **Technical troubleshooting**: Error diagnosis, environment config, tool tricks
+- **Domain knowledge**: Business logic, operational rules, terminology
 - **Workflow/best practices**: Steps for a specific task type, decision frameworks
 
 For each nugget, determine:
-1. **Topic file**: Which existing `~/.copilot/knowledge/*.md` file it belongs to, or a new file name if no match
-2. **Content**: A concise but complete description (include context, cause, solution)
-3. **Source**: Which session/conversation it came from
+1. **Topic file**: Which `~/.copilot/knowledge/*.md` it belongs to (or new file name)
+2. **Content**: Concise but complete (context + cause + solution)
+3. **Source**: Session reference
 
-### Step 4: Present Findings
+### Step 4: Audit Memory Health
 
-Present your findings as a structured report with numbered, actionable suggestions:
+> **本步骤每次都执行**，不依赖是否有新聊天历史。
+
+使用 Step 2 中加载的全局记忆数据，执行以下审计：
+
+#### 4a: Budget Check (行数预算)
+
+- 计算所有 `/memories/*.md` 文件的**总行数**
+- 阈值: **120 行为 warning**，**180 行为 critical**（留 buffer 给未来新增）
+- 如果超标，标记需要精简的文件
+
+#### 4b: Scope Misplacement (归属错位)
+
+检查全局记忆中的每个条目：
+- 是否**仅在特定项目/workspace** 中有用？→ 建议移到 `/memories/repo/`
+- 是否**已经过时**？（提到的工具版本、已解决的问题）→ 建议删除
+- 是否**过于详细**？（完整的脚本逻辑、长段落）→ 建议压缩为 1-2 行摘要，详细内容移到 knowledge base 或 repo memory
+
+#### 4c: Redundancy Detection (冗余)
+
+- 检查全局记忆文件之间是否有**语义重复**的条目
+- 检查全局记忆与 `~/.copilot/knowledge/` 是否有**内容重叠**
+
+#### 4d: Impact Assessment (影响评估)
+
+对每个建议的修改，评估：
+- 这条记忆被误用/过度引用的风险（如某条记忆本只适用于特定场景，却被 agent 在所有相关对话中引用）
+- 移除/修改后是否会丢失关键上下文
+
+输出格式：为每条建议生成一个 actionable item，分类为：
+- `DELETE` — 过时或无用
+- `MOVE_TO_REPO` — 移到 repo memory
+- `MOVE_TO_KNOWLEDGE` — 移到 knowledge base（详细内容）
+- `COMPRESS` — 保留但压缩为更短的摘要
+- `REWRITE` — 修改措辞以避免误导（如加限定条件）
+
+### Step 5: Present Findings
+
+Present a structured report. 根据实际情况包含以下各节（无内容的节省略）：
 
 ```markdown
 ## 📋 Review Summary
 
-- Sessions reviewed: N
+- Sessions reviewed: N (or "No new sessions")
 - Workspaces covered: N
 - Time period: [earliest] to [latest]
+- Memory files: N files, M total lines (budget: 200)
 
-## 🔧 Existing Skill Optimizations
+## 💰 Token Usage & Cost
 
-### 1. [Skill Name] - [Short description of improvement]
+### agentsview (Codex / Claude Code)
+- **Total cost**: $X.XX
+- **Top model**: [model] — $X.XX (XX%)
+- **Per-agent**: [agent1] $X.XX, [agent2] $X.XX
+
+*(未安装或无数据时省略)*
+
+### Copilot Chat 估算
+- **估算 tokens**: ~Xk input / ~Xk output
+- **估算 cost**: ~$X.XX | **估算 credits**: ~X.X
+- **模型分布**: Claude Opus 4.6 × N, GPT-4o × M
+- ⚠️ 粗估值，实际约为 2-5x
+
+> 💡 Insight: [一句话观察]
+
+## 🔧 Skill Optimizations
+
+### 1. [Skill Name] - [description]
 - **Category**: Missing trigger / Workflow gap / Missing reference / Scope expansion
-- **Evidence**: [Quote or describe the relevant chat exchange]
-- **Suggested Change**: [Specific change to make to the SKILL.md or references]
+- **Evidence**: [chat exchange reference]
+- **Suggested Change**: [specific change]
 - **Impact**: Low / Medium / High
-
-### 2. ...
 
 ## 🆕 New Skill Opportunities
 
-### 1. [Proposed Skill Name]
-- **Purpose**: [What the skill would do]
-- **Triggers**: [Suggested trigger phrases]
-- **Evidence**: [Which conversations showed this need]
-- **Estimated Complexity**: Simple / Medium / Complex
-
-### 2. ...
+### 1. [Proposed Name]
+- **Purpose**: [what it does]
+- **Triggers**: [phrases]
+- **Evidence**: [sessions]
+- **Complexity**: Simple / Medium / Complex
 
 ## ⚠️ Issues Found
 
@@ -141,100 +228,109 @@ Present your findings as a structured report with numbered, actionable suggestio
 
 ## 📝 Knowledge Nuggets
 
-### 1. [Topic] - [Short description]
+### 1. [Topic] - [description]
 - **Category**: Technical / Domain / Workflow
-- **Target file**: `~/.copilot/knowledge/[topic].md` (new / append)
-- **Content**: [The knowledge to record]
-- **Source**: [Session reference]
+- **Target**: `~/.copilot/knowledge/[topic].md` (new / append)
+- **Content**: [the knowledge]
+- **Source**: [session]
+
+## 🧠 Memory Health
+
+- **Budget**: M / 200 lines (🟢 OK / 🟡 Warning / 🔴 Critical)
+- **Issues found**: N
+
+### 1. [File] - [description]
+- **Action**: DELETE / MOVE_TO_REPO / MOVE_TO_KNOWLEDGE / COMPRESS / REWRITE
+- **Reason**: [why]
+- **Detail**: [current content summary → proposed change]
 
 ### 2. ...
 ```
 
-Then use `vscode_askQuestions` to let the user select which suggestions to apply. Present each suggestion as a selectable option with `multiSelect: true`. Include Knowledge Nuggets as selectable items alongside skill suggestions.
+Then use `vscode_askQuestions` to let the user select which suggestions to apply (`multiSelect: true`). Group by category: Skill changes, Knowledge nuggets, Memory actions.
 
-### Step 5: Apply Approved Changes
+### Step 6: Apply Changes & Finalize
 
-For each approved suggestion:
-
-#### For Existing Skill Modifications:
-1. Read the target SKILL.md file
-2. Make the specific changes (add triggers, modify workflow, etc.)
-3. If adding reference files, create them in the skill's `references/` folder
-4. After each modification, append a record to the change log:
-
-```markdown
-## [Date] - [Skill Name] - [Change Type]
-- **Reason**: [Why this change was made]
-- **Evidence**: [Session ID or conversation reference]
-- **Changes Made**:
-  - [Specific change 1]
-  - [Specific change 2]
-```
-
-#### For New Skills:
-1. Create the skill directory under `~/.copilot/skills/[skill-name]/`
-2. Create the `SKILL.md` with proper YAML frontmatter and workflow body
-3. Create a `README.md` following the [Best-README-Template](https://github.com/othneildrew/Best-README-Template) structure. Include these sections (adapt as needed):
-   - **About** — What the skill does, one-paragraph summary
-   - **Getting Started / Prerequisites** — Dependencies, environment requirements
-   - **Usage** — Example trigger phrases and expected behavior
-   - **Workflow Overview** — Brief description of each workflow step
-   - **File Structure** — Tree of the skill directory contents
-   - **Roadmap** — Planned improvements (optional)
-   - **Acknowledgments** — References, inspiration sources (optional)
-4. Create any necessary `references/` files
-5. Log the creation in the change log
-
-#### For Knowledge Nuggets:
-1. If target file exists under `~/.copilot/knowledge/`:
-   - Read current content
-   - Append the new entry formatted as:
-     ```markdown
-     ### [Short title]
-     *Source: [date] — [session description]*
-
-     [Content]
-     ```
-2. If target file does not exist:
-   - Create `~/.copilot/knowledge/[topic].md` with a `# [Topic Title]` heading and the first entry
-3. Update `~/.copilot/knowledge/_index.md`: ensure the new/updated topic file is listed with a one-line description
-4. Log in the change log:
+#### For Skill Modifications:
+1. Read and edit the target SKILL.md
+2. If adding references, create in `references/` folder
+3. Log to change log:
    ```markdown
-   ## [Date] - Knowledge Base - [Topic]
-   - **File**: `~/.copilot/knowledge/[topic].md`
-   - **Action**: Created / Appended
-   - **Entry**: [Short description of what was added]
+   ## [Date] - [Skill Name] - [Change Type]
+   - **Reason**: [why]
+   - **Evidence**: [session reference]
+   - **Changes Made**: [list]
    ```
 
-### Step 6: Mark Sessions as Reviewed and Save Report
+#### For New Skills:
 
-After all approved changes are applied:
+Follow the [skill creation conventions](./references/skill-creation-conventions.md) for all new skills. Key requirements:
 
-1. Run the collector script again with `--mark-reviewed` flag to update the review state:
+1. Create directory under `~/.copilot/skills/[skill-name]/`
+2. Create `SKILL.md` with YAML frontmatter + workflow (see conventions for required fields and body sections)
+3. Create `README.md` per conventions (About, Getting Started, Usage, Workflow Overview)
+4. **Content safety check**: verify no PII, company names, or identifying information in any file (see conventions § Content Safety)
+5. Create `references/` files as needed
+6. Log creation
+
+#### For Knowledge Nuggets:
+1. Append to existing `~/.copilot/knowledge/*.md` or create new file
+2. Format:
+   ```markdown
+   ### [Short title]
+   *Source: [date] — [session description]*
+
+   [Content]
+   ```
+3. Update `~/.copilot/knowledge/_index.md`
+4. Log to change log
+
+#### For Memory Actions:
+Execute each approved memory action using the memory tool:
+
+| Action | Implementation |
+|--------|---------------|
+| `DELETE` | `memory delete /memories/[file]` or use `str_replace` to remove specific entries |
+| `MOVE_TO_REPO` | Create/append to `/memories/repo/[topic].md`, then remove from global |
+| `MOVE_TO_KNOWLEDGE` | Create/append to `~/.copilot/knowledge/[topic].md`, then compress/remove from global |
+| `COMPRESS` | `memory str_replace` to shorten the entry in-place |
+| `REWRITE` | `memory str_replace` to fix misleading wording |
+
+Log each memory action:
+```markdown
+## [Date] - Memory - [Action Type]
+- **File**: /memories/[file]
+- **Action**: [DELETE/MOVE/COMPRESS/REWRITE]
+- **Before**: [summary of old content]
+- **After**: [summary of new state]
 ```
-python "{{SKILL_FOLDER}}/scripts/collect_chat_history.py" --mark-reviewed
-```
 
-2. Save the full review report (from Step 4 + applied changes summary) as a Markdown file:
-   - Save to: `{{SKILL_FOLDER}}/reviews/review_YYYY-MM-DD.md`
-   - Include: review summary, all suggestions (approved and rejected), changes applied, knowledge nuggets written
+#### Finalize:
 
-3. Inform the user of:
-   - How many changes were applied
-   - How many knowledge nuggets were recorded and to which files
-   - Where the review report was saved
-   - When to run the next review
+1. Mark sessions as reviewed (skip if no new history in Step 1a):
+   ```
+   python "{{SKILL_FOLDER}}/scripts/collect_chat_history.py" --mark-reviewed
+   ```
+
+2. Save review report to `{{SKILL_FOLDER}}/reviews/review_YYYY-MM-DD.md`
+
+3. Summary to user:
+   - Changes applied (skills modified/created, nuggets recorded, memory actions taken)
+   - Current memory budget status after changes
+   - Report file location
 
 ## Important Notes
 
-- **Never fabricate suggestions**. Every suggestion must be grounded in actual chat history evidence.
+- **Never fabricate suggestions**. Every suggestion must be grounded in actual evidence (chat history for skills, file content for memory).
 - **Be conservative with scope expansion**. Only suggest it when there's clear evidence of repeated need.
 - **Preserve existing skill functionality**. When modifying a skill, ensure backward compatibility.
-- **Quote evidence**. Always cite the specific user message or conversation that led to a suggestion.
-- **Handle "no history" gracefully**. If the user hasn't used VS Code chat since the last review, simply inform them and stop. Don't force suggestions.
+- **Quote evidence**. Always cite the specific source that led to a suggestion.
+- **Memory edits are cautious**. When in doubt, suggest `COMPRESS` over `DELETE`. Prefer `MOVE_TO_REPO` over deletion when content has project-specific value.
 - **Respect user choices**. If the user declines a suggestion, do not apply it and do not argue.
+- **"Memory only" mode**: If user says "memory audit" / "记忆管理" / "记忆审计", skip Steps 1b and 3 (chat analysis), only do Steps 1a (for state tracking), 2, 4, 5, 6.
 
 ## Known Limitations
 
-- **Current active chat session**: The collector script cannot scan the chat session that is currently running the review (the JSONL file is still being written). To review content from the current session, start a new chat and run the review from there.
-- **Long-lived sessions**: Sessions that continue across multiple days are now tracked by line count (not just session ID), so incremental content will be detected. If you encounter a "No New Chat History" result but know there should be new content, check `review_state.json` for stale line counts.
+- **Current active chat session**: The collector script cannot scan the session currently running the review. Start a new chat to review content from a prior session.
+- **Long-lived sessions**: Tracked by line count (not just session ID), so incremental content is detected.
+- **Memory tool scope**: The memory tool can only manage files under `/memories/`, `/memories/session/`, and `/memories/repo/`. Knowledge base files (`~/.copilot/knowledge/`) are managed via file system tools directly.

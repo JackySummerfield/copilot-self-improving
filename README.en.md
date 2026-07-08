@@ -32,9 +32,10 @@ This Skill automates the feedback loop:
 
 | Feature | Trigger | Description |
 |---------|---------|-------------|
-| Full Review | `daily review` / `每日回顾` | Collect → Analyze → Suggest → Apply (end-to-end) |
+| Full Review | `daily review` / `每日回顾` | Collect → Analyze → Memory Audit → Suggest → Apply (end-to-end) |
 | Skill Optimization | `skill review` / `技能优化` | Focus on improving existing Skills |
 | Knowledge Extraction | `knowledge extraction` / `知识提取` | Focus on knowledge distillation |
+| Memory Management | `memory audit` / `记忆审计` | Audit global memory health, compress bloated entries |
 | Token Usage Stats | Runs automatically with full review | Estimates token consumption and cost per session |
 | General Review | `self-improving` / `复盘` | Same as full review |
 
@@ -44,6 +45,7 @@ This Skill automates the feedback loop:
 - **Workflow gaps** — manual steps that could be automated
 - **New Skill opportunities** — repeated multi-step patterns across sessions
 - **Knowledge fragments** — technical troubleshooting, domain rules, best practices
+- **Memory bloat** — global memory exceeding 200-line budget, stale/misplaced/redundant entries
 - **Token cost trends** — estimates cost from transcript char counts + models.json pricing, highlights high-consumption sessions
 
 ## 🚀 Quick Start
@@ -70,14 +72,16 @@ If it returns "No New Chat History" or a structured review report, you're all se
 
 ```mermaid
 graph LR
-    A[Collect un-reviewed chats] --> B[Read existing Skills]
-    B --> C[Cross-analyze & identify opportunities]
-    C --> D[Generate structured report]
-    D --> E{User selection}
-    E -->|Approve| F[Auto-apply changes]
-    E -->|Reject| G[Skip]
-    F --> H[Mark reviewed & save report]
-    G --> H
+    A[Collect Data] --> B[Load Context]
+    B --> C[Analyze Skills & Knowledge]
+    B --> D[Audit Memory Health]
+    C --> E[Generate structured report]
+    D --> E
+    E --> F{User selection}
+    F -->|Approve| G[Auto-apply changes]
+    F -->|Reject| H[Skip]
+    G --> I[Finalize & save report]
+    H --> I
 ```
 
 ## 📄 Output Examples
@@ -90,7 +94,7 @@ graph LR
 
 - Sessions reviewed: 12
 - Workspaces covered: 4
-- Time period: 2026-06-18 to 2026-06-24
+- Time period: 2026-01-10 to 2026-01-15
 
 ## 💰 Token Usage & Cost (Estimated)
 - Estimated input tokens: ~85k | output tokens: ~120k
@@ -99,10 +103,10 @@ graph LR
 
 ## 🔧 Existing Skill Optimizations
 
-### 1. plantsim-copilot - Add missing triggers
+### 1. api-docs-helper - Add missing triggers
 - **Category**: Missing trigger
-- **Evidence**: User said "help me write a SimTalk method" but Skill didn't activate
-- **Suggested Change**: Add "写SimTalk", "SimTalk方法" to triggers
+- **Evidence**: User said "look up how to call this API" but Skill didn't activate
+- **Suggested Change**: Add "query API", "check endpoint" to triggers
 - **Impact**: Medium
 
 ## 🆕 New Skill Opportunities
@@ -114,9 +118,9 @@ graph LR
 
 ## 📝 Knowledge Nuggets
 
-### 1. OneDrive vs .git conflict
-- **Target**: ~/.copilot/knowledge/pg-it-environment.md (append)
-- **Content**: OneDrive sync locks .git/index, causing git operations to fail. Fix: exclude .git from OneDrive sync
+### 1. Cloud sync vs .git conflict
+- **Target**: ~/.copilot/knowledge/dev-environment.md (append)
+- **Content**: Cloud sync tools (OneDrive/Dropbox) lock .git/index, causing git operations to fail. Fix: exclude .git from sync
 ```
 
 </details>
@@ -125,16 +129,16 @@ graph LR
 <summary><b>Change Log</b></summary>
 
 ```markdown
-## 2026-06-24 - plantsim-copilot - Missing Trigger
-- **Reason**: User phrase "写SimTalk方法" not matched
+## 2026-01-15 - api-docs-helper - Missing Trigger
+- **Reason**: User phrase "query API" not matched
 - **Evidence**: session abc123, turn 5
 - **Changes Made**:
-  - SKILL.md triggers added: 写SimTalk, SimTalk方法
+  - SKILL.md triggers added: query API, check endpoint
 
-## 2026-06-24 - Knowledge Base - pg-it-environment
-- **File**: ~/.copilot/knowledge/pg-it-environment.md
+## 2026-01-15 - Knowledge Base - dev-environment
+- **File**: ~/.copilot/knowledge/dev-environment.md
 - **Action**: Appended
-- **Entry**: OneDrive .git conflict resolution
+- **Entry**: Cloud sync .git conflict resolution
 ```
 
 </details>

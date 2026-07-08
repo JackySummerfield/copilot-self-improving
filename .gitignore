@@ -5,4 +5,5 @@ __pycache__/
 # State & generated files containing personal/session info
 review_state.json
 skill_change_log.md
+deferred_opportunities.md
 reviews/
