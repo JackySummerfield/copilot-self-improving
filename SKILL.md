@@ -34,8 +34,8 @@ Before running anything, ensure the following files and directories exist. If an
    ---
    ```
 3. `{{SKILL_FOLDER}}/reviews/` directory — if missing, create it.
-4. `~/.copilot/knowledge/` directory — if missing, create it.
-5. `~/.copilot/knowledge/_index.md` — if missing, create with content:
+4. `~/.copilot/doc/knowledge/` directory — if missing, create it.
+5. `~/.copilot/doc/knowledge/_index.md` — if missing, create with content:
    ```
    # Personal Knowledge Base
 
@@ -98,7 +98,7 @@ agentsview usage daily --breakdown --json
 加载当前 Skill/Knowledge/Memory 全貌，为后续分析建立基线：
 
 1. **Skills**: List `~/.copilot/skills/`，为每个 Skill 读取 `SKILL.md`（跳过自身）。记录各 Skill 的 triggers、scope、references。
-2. **Knowledge base**: List `~/.copilot/knowledge/`，读取 `_index.md` 了解已有主题。
+2. **Knowledge base**: List `~/.copilot/doc/knowledge/wiki/`，读取 `~/.copilot/doc/knowledge/_index.md` 了解已有主题。
 3. **Global memory files**: 使用 memory tool `view /memories/` 列出所有用户记忆文件，逐个读取内容。记录：
    - 每个文件名、行数
    - 总行数（vs 200 行自动加载上限）
@@ -136,7 +136,7 @@ Extract valuable scattered knowledge from conversations:
 - **Workflow/best practices**: Steps for a specific task type, decision frameworks
 
 For each nugget, determine:
-1. **Topic file**: Which `~/.copilot/knowledge/*.md` it belongs to (or new file name)
+1. **Topic file**: Which `~/.copilot/doc/knowledge/wiki/*.md` it belongs to (or new file name)
 2. **Content**: Concise but complete (context + cause + solution)
 3. **Source**: Session reference
 
@@ -162,7 +162,7 @@ For each nugget, determine:
 #### 4c: Redundancy Detection (冗余)
 
 - 检查全局记忆文件之间是否有**语义重复**的条目
-- 检查全局记忆与 `~/.copilot/knowledge/` 是否有**内容重叠**
+- 检查全局记忆与 `~/.copilot/doc/knowledge/wiki/` 是否有**内容重叠**
 
 #### 4d: Impact Assessment (影响评估)
 
@@ -177,7 +177,39 @@ For each nugget, determine:
 - `COMPRESS` — 保留但压缩为更短的摘要
 - `REWRITE` — 修改措辞以避免误导（如加限定条件）
 
-### Step 5: Present Findings
+### Step 5: Wiki Lint (Knowledge Base Health)
+
+> **本步骤每次都执行**，不依赖是否有新聊天历史。
+
+扫描 `~/.copilot/doc/knowledge/` 目录，按 `_schema.md` 的约定执行健康检查：
+
+#### 5a: Structure Check
+- `_index.md` 中列出的每个 `[[wikilink]]` 是否在 `wiki/` 下有对应文件
+- `wiki/` 下是否有文件未被 `_index.md` 收录（孤立页面）
+
+#### 5b: Cross-Reference Quality
+- 扫描 wiki 页面中的 `[[wikilink]]`，验证目标文件存在
+- **不主动建议新链接**，除非两个页面之间有明确的知识依赖关系（例如页面 A 的操作步骤需要页面 B 的前置配置），而非仅仅提到了同一个词
+
+#### 5c: Content Staleness
+- 检查是否有页面长期未更新但所涉技术/流程已变化（结合 `_log.md` 最近操作判断）
+- 标记可能过时的内容（如提到的工具版本、已废弃的流程）
+
+#### 5d: Page Size
+- 标记超过 200 行的页面（建议拆分）
+
+输出格式：
+```markdown
+## 📚 Wiki Lint
+
+- **Pages**: N in wiki/, N indexed
+- **Wikilinks**: N total, N broken
+- **Orphan pages**: [list or "none"]
+- **Oversized pages**: [list or "none"]
+- **Stale candidates**: [list or "none"]
+```
+
+### Step 6: Present Findings
 
 Present a structured report. 根据实际情况包含以下各节（无内容的节省略）：
 
@@ -230,7 +262,7 @@ Present a structured report. 根据实际情况包含以下各节（无内容的
 
 ### 1. [Topic] - [description]
 - **Category**: Technical / Domain / Workflow
-- **Target**: `~/.copilot/knowledge/[topic].md` (new / append)
+- **Target**: `~/.copilot/doc/knowledge/wiki/[topic].md` (new / append)
 - **Content**: [the knowledge]
 - **Source**: [session]
 
@@ -247,9 +279,9 @@ Present a structured report. 根据实际情况包含以下各节（无内容的
 ### 2. ...
 ```
 
-Then use `vscode_askQuestions` to let the user select which suggestions to apply (`multiSelect: true`). Group by category: Skill changes, Knowledge nuggets, Memory actions.
+Then use `vscode_askQuestions` to let the user select which suggestions to apply (`multiSelect: true`). Group by category: Skill changes, Knowledge nuggets, Memory actions, Wiki lint fixes.
 
-### Step 6: Apply Changes & Finalize
+### Step 7: Apply Changes & Finalize
 
 #### For Skill Modifications:
 1. Read and edit the target SKILL.md
@@ -274,7 +306,7 @@ Follow the [skill creation conventions](./references/skill-creation-conventions.
 6. Log creation
 
 #### For Knowledge Nuggets:
-1. Append to existing `~/.copilot/knowledge/*.md` or create new file
+1. Append to existing `~/.copilot/doc/knowledge/wiki/*.md` or create new file
 2. Format:
    ```markdown
    ### [Short title]
@@ -282,7 +314,7 @@ Follow the [skill creation conventions](./references/skill-creation-conventions.
 
    [Content]
    ```
-3. Update `~/.copilot/knowledge/_index.md`
+3. Update `~/.copilot/doc/knowledge/_index.md`
 4. Log to change log
 
 #### For Memory Actions:
@@ -292,9 +324,15 @@ Execute each approved memory action using the memory tool:
 |--------|---------------|
 | `DELETE` | `memory delete /memories/[file]` or use `str_replace` to remove specific entries |
 | `MOVE_TO_REPO` | Create/append to `/memories/repo/[topic].md`, then remove from global |
-| `MOVE_TO_KNOWLEDGE` | Create/append to `~/.copilot/knowledge/[topic].md`, then compress/remove from global |
+| `MOVE_TO_KNOWLEDGE` | Create/append to `~/.copilot/doc/knowledge/wiki/[topic].md`, then compress/remove from global |
 | `COMPRESS` | `memory str_replace` to shorten the entry in-place |
 | `REWRITE` | `memory str_replace` to fix misleading wording |
+
+#### For Wiki Lint Fixes:
+1. Fix broken wikilinks (update or remove)
+2. Add orphan pages to `_index.md`
+3. Remove entries from `_index.md` for deleted pages
+4. Append operation to `~/.copilot/doc/knowledge/_log.md`
 
 Log each memory action:
 ```markdown
@@ -333,4 +371,4 @@ Log each memory action:
 
 - **Current active chat session**: The collector script cannot scan the session currently running the review. Start a new chat to review content from a prior session.
 - **Long-lived sessions**: Tracked by line count (not just session ID), so incremental content is detected.
-- **Memory tool scope**: The memory tool can only manage files under `/memories/`, `/memories/session/`, and `/memories/repo/`. Knowledge base files (`~/.copilot/knowledge/`) are managed via file system tools directly.
+- **Memory tool scope**: The memory tool can only manage files under `/memories/`, `/memories/session/`, and `/memories/repo/`. Knowledge base files (`~/.copilot/doc/knowledge/wiki/`) are managed via file system tools directly.
